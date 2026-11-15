@@ -99,7 +99,7 @@
        The token is encrypted with your password; only the encrypted copy (vault.json) is published.</p>
     <form id="setup-form">
       <div class="row"><input type="password" id="setup-token" placeholder="GitHub token (github_pat_…)" autocomplete="off"></div>
-      <div class="row"><input type="password" id="setup-pass1" placeholder="Password (a long passphrase)" autocomplete="new-password"></div>
+      <div class="row"><input type="password" id="setup-pass1" placeholder="Password" autocomplete="new-password"></div>
       <div class="row"><input type="password" id="setup-pass2" placeholder="Password again" autocomplete="new-password"></div>
       <div class="row"><button class="primary" id="make-vault">Create vault.json</button></div>
     </form>
@@ -246,7 +246,6 @@ async function loadVault() {
 $("unlock-form").addEventListener("submit", async e => {
   e.preventDefault();
   const pw = $("password").value;
-  if (!pw) return;
   $("unlock").disabled = true;
   say("unlock-status", "Unlocking…");
   try {
@@ -330,7 +329,6 @@ $("setup-form").addEventListener("submit", async e => {
   e.preventDefault();
   const t = $("setup-token").value.trim(), p1 = $("setup-pass1").value, p2 = $("setup-pass2").value;
   if (!t) return say("setup-status", "Paste the token first.", true);
-  if (p1.length < 12) return say("setup-status", "Use a password of at least 12 characters (a few random words is best).", true);
   if (p1 !== p2) return say("setup-status", "The passwords don't match.", true);
   say("setup-status", "Checking the token…");
   token = t;
