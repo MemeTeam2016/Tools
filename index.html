@@ -200,7 +200,8 @@ async function openVault(vault, password) {
 // ---------- GitHub contents API ----------
 let token = null;
 async function gh(path, opts = {}) {
-  const r = await fetch(`https://api.github.com/repos/${SAVES_REPO}/${path}`, {
+  // no trailing slash: GitHub redirects it, and the browser blocks that for this request
+  const r = await fetch(`https://api.github.com/repos/${SAVES_REPO}${path ? "/" + path : ""}`, {
     ...opts,
     cache: "no-store",
     headers: { "Accept": "application/vnd.github+json", "Authorization": `Bearer ${token}`,
