@@ -16,7 +16,7 @@ same save plays on any computer:
   The page checks the game's save every 5 seconds and uploads it once it has
   stopped changing. Each upload is a commit, so old saves stay in the history.
 - Play on one computer at a time: the last upload wins.
-- Use a long passphrase: `vault.json` is public, so a weak password could be guessed.
+- `vault.json` is public, so a short password could be guessed; the token only reaches the saves repo.
 
 Setup: open the page, use "Set up cloud saves", and publish the `vault.json` it
 downloads next to `index.html`. To change the password or token, do it again.
