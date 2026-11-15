@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBA Player</title>
+<style>
+  :root {
+    --bg: #15171c; --panel: #1f232b; --text: #e8eaed; --muted: #9aa0a6;
+    --accent: #e8453c; --accent-text: #fff; --border: #2e333d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f5f7; --panel: #fff; --text: #1f2328; --muted: #5f6368;
+            --accent: #d93a31; --accent-text: #fff; --border: #d9dce1; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #setup { max-width: 520px; margin: 10vh auto 0; padding: 0 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 8px 0; color: var(--muted); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  button, label.btn { appearance: none; border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); padding: 9px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
+  button.primary, label.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  input[type=file] { display: none; }
+  #status { min-height: 1.5em; margin-top: 12px; }
+  #game-wrap { display: none; position: fixed; inset: 0; background: #000; }
+  #game { width: 100%; height: 100%; }
+  ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+  kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+<div id="setup">
+  <div class="card">
+    <h1>GBA Player</h1>
+    <p>Runs in your browser. The ROM never leaves this computer: it's read from a
+       file you choose and kept in this browser's storage, along with your saves.</p>
+    <div class="row">
+      <button id="play" class="primary" hidden>Play</button>
+      <label class="btn" id="pick-label" for="pick">Choose ROM (.gba)</label>
+      <input type="file" id="pick" accept=".gba,.zip">
+      <button id="forget" hidden>Forget stored ROM</button>
+    </div>
+    <div id="status"></div>
+    <ul>
+      <li>Saves stay in this browser. To continue on another computer, use the player
+          menu's <b>Export Save File</b>, then <b>Import Save File</b> there.</li>
+      <li>The menu button (bottom bar) has fast-forward, save states and key bindings.</li>
+    </ul>
+  </div>
+</div>
+<div id="game-wrap"><div id="game"></div></div>
+
+<script>
+// ROM storage: one Blob in IndexedDB so later visits can start straight away.
+const DB = "gba-player", STORE = "files", KEY = "rom";
+function db() {
+  return new Promise((ok, err) => {
+    const r = indexedDB.open(DB, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => err(r.error);
+  });
+}
+async function idb(mode, fn) {
+  const d = await db();
+  return new Promise((ok, err) => {
+    const t = d.transaction(STORE, mode), req = fn(t.objectStore(STORE));
+    t.oncomplete = () => ok(req && req.result);
+    t.onerror = () => err(t.error);
+  });
+}
+const getRom = () => idb("readonly", s => s.get(KEY)).catch(() => null);
+const putRom = (rec) => idb("readwrite", s => s.put(rec, KEY));
+const delRom = () => idb("readwrite", s => s.delete(KEY));
+
+const $ = id => document.getElementById(id);
+const status = t => { $("status").textContent = t; };
+
+function start(blob, name) {
+  $("setup").style.display = "none";
+  $("game-wrap").style.display = "block";
+  window.EJS_player = "#game";
+  window.EJS_core = "gba";
+  window.EJS_gameName = name.replace(/\.[^.]+$/, "");   // keys the browser saves
+  window.EJS_gameUrl = URL.createObjectURL(blob);
+  window.EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
+  window.EJS_startOnLoaded = true;
+  const s = document.createElement("script");
+  s.src = window.EJS_pathtodata + "loader.js";
+  document.body.appendChild(s);
+}
+
+async function refresh() {
+  const rec = await getRom();
+  $("play").hidden = $("forget").hidden = !rec;
+  $("pick-label").textContent = rec ? "Use a different ROM" : "Choose ROM (.gba)";
+  status(rec ? `Stored ROM: ${rec.name}` : "No ROM stored in this browser yet.");
+  return rec;
+}
+
+$("pick").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try { await putRom({ name: f.name, blob: f }); } catch (_) { /* storage blocked: just play */ }
+  start(f, f.name);
+});
+$("play").addEventListener("click", async () => {
+  const rec = await getRom();
+  if (rec) start(rec.blob, rec.name);
+});
+$("forget").addEventListener("click", async () => { await delRom(); refresh(); });
+
+// Local testing only: ?rom=<same-origin path> loads a ROM served next to the page.
+const dev = new URLSearchParams(location.search).get("rom");
+if (dev && !/^[a-z]+:/i.test(dev)) {
+  fetch(dev).then(r => r.blob()).then(b => start(b, dev.split("/").pop()));
+} else {
+  refresh();
+}
+</script>
+</body>
+</html>
