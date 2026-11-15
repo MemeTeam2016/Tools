@@ -7,18 +7,16 @@
 <style>
   :root {
     --bg: #15171c; --panel: #1f232b; --text: #e8eaed; --muted: #9aa0a6;
-    --accent: #e8453c; --accent-text: #fff; --border: #2e333d; --field: #15171c;
-    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --accent: #e8453c; --accent-text: #fff; --border: #2e333d; --bad: #f85149;
   }
   @media (prefers-color-scheme: light) {
     :root { --bg: #f4f5f7; --panel: #fff; --text: #1f2328; --muted: #5f6368;
-            --accent: #d93a31; --accent-text: #fff; --border: #d9dce1; --field: #fff;
-            --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; }
+            --accent: #d93a31; --accent-text: #fff; --border: #d9dce1; --bad: #cf222e; }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
                font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  #setup { max-width: 540px; margin: 6vh auto 40px; padding: 0 16px; display: grid; gap: 16px; }
+  #setup { max-width: 540px; margin: 8vh auto 40px; padding: 0 16px; display: grid; gap: 16px; }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
   h2 { font-size: 16px; margin: 0 0 4px; }
@@ -26,20 +24,13 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   button, label.btn { appearance: none; border: 1px solid var(--border); background: var(--panel);
     color: var(--text); padding: 9px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
-  button.primary, label.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
   button:disabled { opacity: .5; cursor: default; }
-  button.link { border: 0; background: none; padding: 0; color: var(--muted); text-decoration: underline; }
   input[type=file] { display: none; }
-  input[type=password], input[type=text] { font: inherit; color: var(--text); background: var(--field);
-    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; min-width: 0; flex: 1 1 200px; }
+  select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--border);
+           border-radius: 8px; padding: 8px 10px; }
   .status { min-height: 1.5em; margin-top: 10px; color: var(--muted); }
   .status.bad { color: var(--bad); }
-  ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
-  #saves { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
-  #saves label { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border);
-                 border-radius: 8px; cursor: pointer; color: var(--text); }
-  #saves small { color: var(--muted); margin-left: auto; }
-  .check { display: flex; gap: 6px; align-items: center; color: var(--muted); }
   #game-wrap { display: none; position: fixed; inset: 0; background: #000; }
   #game { width: 100%; height: 100%; }
   #sync { position: fixed; top: 8px; right: 8px; z-index: 10; display: none; padding: 4px 10px;
@@ -51,67 +42,28 @@
 </head>
 <body>
 <div id="setup">
-  <div class="card">
+  <div class="card" id="folder-card">
     <h1>GBA Player</h1>
-    <p>Runs in your browser. The ROM never leaves this computer: it's read from a
-       file you choose and kept in this browser's storage.</p>
+    <p>Pick the folder that holds your ROM. The game's save is read from and written to a
+       <b>.sav</b> file next to the ROM, so a folder on a USB stick or in OneDrive / Google Drive
+       carries your save to any computer.</p>
     <div class="row">
-      <label class="btn" id="pick-label" for="pick">Choose ROM (.gba)</label>
-      <input type="file" id="pick" accept=".gba,.zip">
-      <button id="forget" hidden>Forget stored ROM</button>
+      <button class="primary" id="play-folder" hidden>Play</button>
+      <button id="choose-folder">Choose game folder</button>
     </div>
-    <div class="status" id="rom-status"></div>
+    <div class="row" id="rom-choice" hidden>
+      <select id="rom-select"></select>
+    </div>
+    <div class="status" id="folder-status"></div>
   </div>
 
-  <!-- cloud saves: locked -->
-  <div class="card" id="cloud-locked" hidden>
-    <h2>Cloud saves</h2>
-    <p>Enter your password to load your saves.</p>
-    <form class="row" id="unlock-form">
-      <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-      <button class="primary" id="unlock">Unlock</button>
-    </form>
-    <label class="check" style="margin-top:10px"><input type="checkbox" id="remember"> Remember on this computer</label>
-    <div class="status" id="unlock-status"></div>
-  </div>
-
-  <!-- cloud saves: unlocked -->
-  <div class="card" id="cloud-open" hidden>
-    <h2>Cloud saves</h2>
-    <p>Pick a save. When you save in the game, it uploads automatically.</p>
-    <ul id="saves"></ul>
-    <form class="row" id="new-form">
-      <input type="text" id="new-name" placeholder="New save name" maxlength="40">
-      <button id="new-save">New save</button>
-    </form>
+  <div class="card" id="fallback-card">
+    <h2 id="fallback-title">Play from this browser</h2>
+    <p id="fallback-text">Saves stay in this browser only (player menu: Export / Import Save File).</p>
     <div class="row">
-      <button class="primary" id="play-cloud" disabled>Play</button>
-      <button class="link" id="lock">Lock</button>
+      <label class="btn" for="pick">Choose ROM (.gba)</label>
+      <input type="file" id="pick" accept=".gba">
     </div>
-    <div class="status" id="cloud-status"></div>
-  </div>
-
-  <!-- no cloud set up yet -->
-  <div class="card" id="cloud-setup" hidden>
-    <h2>Set up cloud saves</h2>
-    <p>Saves go to the private repo <b id="repo-name"></b>. Create a fine-grained GitHub token with
-       only that repository and <b>Contents: Read and write</b>, then choose a password.
-       The token is encrypted with your password; only the encrypted copy (vault.json) is published.</p>
-    <form id="setup-form">
-      <div class="row"><input type="password" id="setup-token" placeholder="GitHub token (github_pat_…)" autocomplete="off"></div>
-      <div class="row"><input type="password" id="setup-pass1" placeholder="Password" autocomplete="new-password"></div>
-      <div class="row"><input type="password" id="setup-pass2" placeholder="Password again" autocomplete="new-password"></div>
-      <div class="row"><button class="primary" id="make-vault">Create vault.json</button></div>
-    </form>
-    <div class="status" id="setup-status"></div>
-    <p>Then add the downloaded <b>vault.json</b> next to this page in the site's repo.</p>
-  </div>
-
-  <div class="card">
-    <h2>Play without cloud saves</h2>
-    <p>Saves stay in this browser only. Use the player menu's <b>Export / Import Save File</b> to move them.</p>
-    <div class="row"><button id="play-local" disabled>Play offline</button>
-      <button class="link" id="show-setup">Set up cloud saves</button></div>
   </div>
 </div>
 <div id="game-wrap"><div id="game"></div></div>
@@ -119,241 +71,91 @@
 
 <script>
 "use strict";
-const SAVES_REPO = "MemeTeam2016/gba-saves";   // private repo holding the .sav files
-const SAVES_DIR = "saves";
-const EJS_DATA = "https://cdn.emulatorjs.org/4.2.3/data/";   // pinned: the sync uses its internals
-const SYNC_EVERY_MS = 5000;
-const PBKDF2_ITER = 600000;
+const EJS_DATA = "https://cdn.emulatorjs.org/4.2.3/data/";   // pinned: the save code uses its internals
+const SYNC_EVERY_MS = 3000;
+const SAVE_SIZE = 128 * 1024;                                  // FireRed's flash
 
 const $ = id => document.getElementById(id);
-const say = (id, t, bad) => { $(id).textContent = t; $(id).classList.toggle("bad", !!bad); };
-const show = (id, on) => { $(id).hidden = !on; };
+const say = (t, bad) => { $("folder-status").textContent = t; $("folder-status").classList.toggle("bad", !!bad); };
+const canUseFolders = "showDirectoryPicker" in window;
 
-// ---------- ROM storage (IndexedDB) ----------
-const DB = "gba-player", STORE = "files", KEY = "rom";
+// ---------- remembered folder (IndexedDB holds the folder handle, not files) ----------
 function db() {
   return new Promise((ok, err) => {
-    const r = indexedDB.open(DB, 1);
-    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    const r = indexedDB.open("gba-player-folder", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
     r.onsuccess = () => ok(r.result);
     r.onerror = () => err(r.error);
   });
 }
-async function idb(mode, fn) {
+async function kv(mode, fn) {
   const d = await db();
   return new Promise((ok, err) => {
-    const t = d.transaction(STORE, mode), req = fn(t.objectStore(STORE));
+    const t = d.transaction("kv", mode), req = fn(t.objectStore("kv"));
     t.oncomplete = () => ok(req && req.result);
     t.onerror = () => err(t.error);
   });
 }
-const getRom = () => idb("readonly", s => s.get(KEY)).catch(() => null);
-const putRom = rec => idb("readwrite", s => s.put(rec, KEY));
-const delRom = () => idb("readwrite", s => s.delete(KEY));
+const getStored = k => kv("readonly", s => s.get(k)).catch(() => null);
+const setStored = (k, v) => kv("readwrite", s => s.put(v, k)).catch(() => {});
 
-let rom = null;   // {name, blob}
-async function refreshRom() {
-  rom = await getRom();
-  $("forget").hidden = !rom;
-  $("pick-label").textContent = rom ? "Use a different ROM" : "Choose ROM (.gba)";
-  say("rom-status", rom ? `ROM: ${rom.name}` : "No ROM in this browser yet. Choose your .gba file once.");
-  updatePlayButtons();
+let folder = null;     // FileSystemDirectoryHandle
+async function listRoms(dir) {
+  const roms = [];
+  for await (const [name, h] of dir.entries())
+    if (h.kind === "file" && /\.gba$/i.test(name)) roms.push(name);
+  return roms.sort();
 }
-$("pick").addEventListener("change", async e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  rom = { name: f.name, blob: f };
-  try { await putRom(rom); } catch (_) { /* storage blocked: keep it for this visit */ }
-  await refreshRom();
-  if (!rom) { rom = { name: f.name, blob: f }; updatePlayButtons(); }
-});
-$("forget").addEventListener("click", async () => { await delRom(); refreshRom(); });
+const savName = rom => rom.replace(/\.gba$/i, "") + ".sav";
 
-// ---------- base64 / crypto ----------
-function b64(bytes) {
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-function unb64(str) {
-  const s = atob(str.replace(/\s/g, "")), out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out;
-}
-async function deriveKey(password, salt, iter) {
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter },
-                                 base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
-}
-async function makeVault(token, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveKey(password, salt, PBKDF2_ITER);
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(token)));
-  return { v: 1, kdf: "PBKDF2-SHA256", iter: PBKDF2_ITER, salt: b64(salt), iv: b64(iv), ct: b64(ct) };
-}
-async function openVault(vault, password) {
-  const key = await deriveKey(password, unb64(vault.salt), vault.iter);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(vault.iv) }, key, unb64(vault.ct));
-  return new TextDecoder().decode(pt);   // throws on a wrong password
-}
-
-// ---------- GitHub contents API ----------
-let token = null;
-async function gh(path, opts = {}) {
-  // no trailing slash: GitHub redirects it, and the browser blocks that for this request
-  const r = await fetch(`https://api.github.com/repos/${SAVES_REPO}${path ? "/" + path : ""}`, {
-    ...opts,
-    cache: "no-store",
-    headers: { "Accept": "application/vnd.github+json", "Authorization": `Bearer ${token}`,
-               "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) },
-  });
-  if (!r.ok) { const e = new Error(`GitHub ${r.status}`); e.status = r.status; throw e; }
-  return r.status === 204 ? null : r.json();
-}
-const savePath = name => `${SAVES_DIR}/${encodeURIComponent(name)}.sav`;
-async function listSaves() {
-  try {
-    const items = await gh(`contents/${SAVES_DIR}`);
-    return items.filter(i => i.type === "file" && i.name.endsWith(".sav"))
-                .map(i => ({ name: i.name.slice(0, -4), size: i.size }));
-  } catch (e) {
-    if (e.status === 404) return [];
-    throw e;
+async function showFolder(dir, granted) {
+  folder = dir;
+  $("play-folder").hidden = false;
+  $("choose-folder").textContent = "Choose a different folder";
+  if (!granted) {
+    $("rom-choice").hidden = true;
+    $("play-folder").textContent = `Play from "${dir.name}"`;
+    say("Click Play to give this page access to the folder again.");
+    return;
   }
-}
-async function readSave(name) {
-  const f = await gh(`contents/${savePath(name)}`);
-  return { sha: f.sha, bytes: unb64(f.content) };
-}
-async function writeSave(name, bytes, sha) {
-  const body = { message: `Save: ${name}`, content: b64(bytes) };
-  if (sha) body.sha = sha;
-  const r = await gh(`contents/${savePath(name)}`, { method: "PUT", body: JSON.stringify(body) });
-  return r.content.sha;
-}
-
-// ---------- unlock / pick a save ----------
-let vault = null, chosen = null;
-const REMEMBER_KEY = "gba-player-token";
-function remembered() { try { return localStorage.getItem(REMEMBER_KEY); } catch (_) { return null; } }
-
-async function loadVault() {
-  try {
-    const r = await fetch("vault.json", { cache: "no-store" });
-    if (r.ok) vault = await r.json();
-  } catch (_) { /* no vault */ }
+  const roms = await listRoms(dir);
+  const sel = $("rom-select");
+  sel.textContent = "";
+  for (const r of roms) sel.add(new Option(r, r));
+  const last = await getStored("rom");
+  if (roms.includes(last)) sel.value = last;
+  $("rom-choice").hidden = roms.length < 2;
+  $("play-folder").textContent = "Play";
+  $("play-folder").disabled = !roms.length;
+  if (!roms.length) return say(`No .gba file in "${dir.name}".`, true);
+  const hasSav = await dir.getFileHandle(savName(sel.value)).then(() => true, () => false);
+  say(`"${dir.name}": ${sel.value}` + (hasSav ? ` with ${savName(sel.value)}` : " (no save yet: one is created when you save in the game)"));
 }
 
-$("unlock-form").addEventListener("submit", async e => {
-  e.preventDefault();
-  const pw = $("password").value;
-  $("unlock").disabled = true;
-  say("unlock-status", "Unlocking…");
-  try {
-    token = await openVault(vault, pw);
-  } catch (_) {
-    $("unlock").disabled = false;
-    return say("unlock-status", "Wrong password.", true);
-  }
-  $("password").value = "";
-  $("unlock").disabled = false;
-  if ($("remember").checked) { try { localStorage.setItem(REMEMBER_KEY, token); } catch (_) {} }
-  say("unlock-status", "");
-  openCloud();
+$("rom-select").addEventListener("change", () => showFolder(folder, true));
+
+$("choose-folder").addEventListener("click", async () => {
+  let dir;
+  try { dir = await window.showDirectoryPicker({ id: "gba-games", mode: "readwrite" }); }
+  catch (_) { return; }   // cancelled
+  await setStored("folder", dir);
+  showFolder(dir, true);
 });
 
-$("lock").addEventListener("click", () => {
-  token = null; chosen = null;
-  try { localStorage.removeItem(REMEMBER_KEY); } catch (_) {}
-  show("cloud-open", false); show("cloud-locked", true);
+$("play-folder").addEventListener("click", async () => {
+  if ((await folder.queryPermission({ mode: "readwrite" })) !== "granted") {
+    if ((await folder.requestPermission({ mode: "readwrite" })) !== "granted")
+      return say("The page needs access to the folder to load and save the game.", true);
+    return showFolder(folder, true);
+  }
+  const romName = $("rom-select").value;
+  await setStored("rom", romName);
+  playFromFolder(folder, romName);
 });
 
-async function openCloud() {
-  show("cloud-locked", false); show("cloud-open", true);
-  say("cloud-status", "Loading saves…");
-  try {
-    renderSaves(await listSaves());
-    say("cloud-status", "");
-  } catch (e) {
-    if (e.status === 401 || e.status === 403) {
-      try { localStorage.removeItem(REMEMBER_KEY); } catch (_) {}
-      say("cloud-status", "GitHub refused the token (expired or wrong access). Set up cloud saves again.", true);
-    } else {
-      say("cloud-status", `Couldn't load saves (${e.message}). Check your connection.`, true);
-    }
-  }
-}
-
-function renderSaves(saves) {
-  const ul = $("saves");
-  ul.textContent = "";
-  if (!saves.length) {
-    const li = document.createElement("li");
-    li.innerHTML = '<p style="margin:0">No saves yet. Create one below.</p>';
-    ul.appendChild(li);
-  }
-  for (const s of saves) {
-    const li = document.createElement("li"), lab = document.createElement("label");
-    const radio = document.createElement("input"), nm = document.createElement("span"), sz = document.createElement("small");
-    radio.type = "radio"; radio.name = "save"; radio.value = s.name;
-    radio.checked = chosen && chosen.name === s.name;
-    radio.addEventListener("change", () => { chosen = { name: s.name, isNew: false }; updatePlayButtons(); });
-    nm.textContent = s.name; sz.textContent = `${Math.round(s.size / 1024)} KB`;
-    lab.append(radio, nm, sz); li.appendChild(lab); ul.appendChild(li);
-  }
-  if (!chosen && saves.length === 1) { chosen = { name: saves[0].name, isNew: false }; ul.querySelector("input").checked = true; }
-  updatePlayButtons();
-}
-
-$("new-form").addEventListener("submit", async e => {
-  e.preventDefault();
-  const name = $("new-name").value.trim();
-  if (!/^[\w .-]{1,40}$/.test(name)) return say("cloud-status", "Use letters, numbers, spaces, - _ or . (up to 40).", true);
-  const saves = await listSaves().catch(() => []);
-  if (saves.some(s => s.name === name)) return say("cloud-status", "A save with that name already exists.", true);
-  chosen = { name, isNew: true };
-  renderSaves(saves.concat([{ name, size: 0 }]));
-  $("saves").querySelectorAll("input").forEach(r => { r.checked = r.value === name; });
-  $("new-name").value = "";
-  say("cloud-status", `"${name}" starts as a new game. It's uploaded the first time you save in the game.`);
-});
-
-function updatePlayButtons() {
-  $("play-local").disabled = !rom;
-  $("play-cloud").disabled = !rom || !chosen;
-}
-
-// ---------- setup: create vault.json ----------
-$("repo-name").textContent = SAVES_REPO;
-$("show-setup").addEventListener("click", () => { show("cloud-setup", true); $("setup-token").focus(); });
-$("setup-form").addEventListener("submit", async e => {
-  e.preventDefault();
-  const t = $("setup-token").value.trim(), p1 = $("setup-pass1").value, p2 = $("setup-pass2").value;
-  if (!t) return say("setup-status", "Paste the token first.", true);
-  if (p1 !== p2) return say("setup-status", "The passwords don't match.", true);
-  say("setup-status", "Checking the token…");
-  token = t;
-  try {
-    const repo = await gh("");
-    if (!repo.permissions || !repo.permissions.push) throw Object.assign(new Error("no write access"), { status: 403 });
-  } catch (err) {
-    token = null;
-    return say("setup-status", `The token can't write to ${SAVES_REPO} (${err.message}).`, true);
-  }
-  token = null;
-  say("setup-status", "Encrypting…");
-  const v = await makeVault(t, p1);
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(v, null, 2) + "\n"], { type: "application/json" }));
-  a.download = "vault.json";
-  a.click();
-  $("setup-token").value = $("setup-pass1").value = $("setup-pass2").value = "";
-  say("setup-status", "vault.json downloaded. Once it's published next to this page, reload and unlock with your password.");
-});
-
-// ---------- emulator + sync ----------
+// ---------- emulator ----------
 const syncEl = $("sync");
-function syncState(cls, text) { syncEl.className = cls; syncEl.textContent = text; syncEl.style.display = "block"; }
+function badge(cls, text) { syncEl.className = cls; syncEl.textContent = text; syncEl.style.display = "block"; }
 const sameBytes = (a, b) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
 const timeNow = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -372,8 +174,7 @@ function bootEmulator(blob, name, onStart) {
   document.body.appendChild(s);
 }
 
-// Writes bytes as the game's battery save, the way EmulatorJS's own
-// "Import Save File" does, then has the core reload it.
+// Puts bytes in as the game's save, the way EmulatorJS's own "Import Save File" does.
 function injectSave(bytes) {
   const gm = window.EJS_emulator.gameManager, path = gm.getSaveFilePath();
   let dir = "";
@@ -387,96 +188,91 @@ function injectSave(bytes) {
   gm.loadSaveFiles();
 }
 
-async function playCloud() {
-  const save = chosen;
-  $("play-cloud").disabled = true;
-  say("cloud-status", "Downloading save…");
-  let start = null, sha = null;
-  try {
-    if (!save.isNew) ({ bytes: start, sha } = await readSave(save.name));
-  } catch (e) {
-    $("play-cloud").disabled = false;
-    return say("cloud-status", `Couldn't download the save (${e.message}).`, true);
-  }
-  // a new save starts from blank flash, so a save this browser already holds isn't used
-  if (!start) start = new Uint8Array(128 * 1024).fill(0xff);
+async function writeFile(dir, name, bytes) {
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(bytes);
+  await w.close();
+}
 
-  let synced = save.isNew ? null : start;   // what the cloud has
-  let lastSeen = start, uploading = false, dirty = false;
+async function playFromFolder(dir, romName) {
+  say("Loading…");
+  const romFile = await (await dir.getFileHandle(romName)).getFile();
+  const sav = savName(romName);
+  let start = null;
+  try { start = new Uint8Array(await (await (await dir.getFileHandle(sav)).getFile()).arrayBuffer()); }
+  catch (_) { /* no save yet */ }
+  const fresh = !start;
+  // no .sav: start from blank flash, so a save this browser happens to hold isn't used
+  if (!start) start = new Uint8Array(SAVE_SIZE).fill(0xff);
+
+  // desktop mGBA appends a 16-byte footer; the game's save is the first 128 KB
+  const core = start.length > SAVE_SIZE ? start.slice(0, SAVE_SIZE) : start;
+  let written = fresh ? null : core, lastSeen = core, busy = false, dirty = false, backedUp = false;
 
   async function tick() {
-    if (uploading) return;
+    if (busy) return;
     let now;
     try { now = window.EJS_emulator.gameManager.getSaveFile(); } catch (_) { return; }
     if (!now) return;
     now = new Uint8Array(now);
-    const stable = sameBytes(now, lastSeen);   // unchanged for one interval: the game finished writing
+    const stable = sameBytes(now, lastSeen);   // unchanged since last check: the game finished saving
     lastSeen = now;
-    if (sameBytes(now, synced)) { dirty = false; return; }
+    if (sameBytes(now, written)) { dirty = false; return; }
     dirty = true;
-    if (!stable) { syncState("busy", "Saving…"); return; }
-    uploading = true;
-    syncState("busy", "Uploading save…");
+    if (!stable) { badge("busy", "Saving…"); return; }
+    busy = true;
     try {
-      try {
-        sha = await writeSave(save.name, now, sha);
-      } catch (e) {
-        if (e.status !== 409 && e.status !== 422) throw e;
-        // the cloud copy changed (another computer?): this one wins, newest save
-        sha = await readSave(save.name).then(f => f.sha, () => null);
-        sha = await writeSave(save.name, now, sha);
-      }
-      synced = now; dirty = false;
-      syncState("ok", `Saved to cloud ${timeNow()}`);
+      // first write this session: keep the previous save as a backup
+      if (!backedUp && !fresh) { await writeFile(dir, sav + ".bak", start); backedUp = true; }
+      await writeFile(dir, sav, now);
+      written = now; dirty = false;
+      badge("ok", `Saved to ${sav} ${timeNow()}`);
     } catch (e) {
-      syncState("bad", `Upload failed (${e.message}), retrying…`);
+      badge("bad", `Couldn't write ${sav} (${e.message}), retrying…`);
     } finally {
-      uploading = false;
+      busy = false;
     }
   }
 
-  bootEmulator(rom.blob, rom.name, () => {
+  bootEmulator(romFile, romName, () => {
     setTimeout(() => {
       try {
         injectSave(start);
-        syncState("ok", save.isNew ? `New save "${save.name}"` : `Loaded "${save.name}" from cloud`);
+        badge("ok", fresh ? "New game: the save will be created next to the ROM" : `Loaded ${sav}`);
       } catch (e) {
-        syncState("bad", "Couldn't load the cloud save into the game");
         console.error(e);
-        return;
+        return badge("bad", "Couldn't load the save into the game");
       }
       setInterval(tick, SYNC_EVERY_MS);
       document.addEventListener("visibilitychange", () => { if (document.hidden) tick(); });
     }, 50);
   });
-  window.addEventListener("beforeunload", e => {
-    if (dirty || uploading) { e.preventDefault(); e.returnValue = ""; }
-  });
+  window.addEventListener("beforeunload", e => { if (dirty || busy) { e.preventDefault(); e.returnValue = ""; } });
 }
 
-$("play-cloud").addEventListener("click", () => { if (rom && chosen) playCloud(); });
-$("play-local").addEventListener("click", () => { if (rom) bootEmulator(rom.blob, rom.name); });
+// ---------- fallback: browsers without folder access ----------
+$("pick").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (f) bootEmulator(f, f.name);
+});
 
 // ---------- start ----------
 (async () => {
-  // Local testing only: ?rom=<same-origin path> loads a ROM served next to the page.
-  const dev = new URLSearchParams(location.search).get("rom");
-  if (dev && !/^[a-z]+:/i.test(dev)) {
-    const b = await fetch(dev).then(r => r.blob());
-    rom = { name: dev.split("/").pop(), blob: b };
-    say("rom-status", `ROM (test): ${rom.name}`);
-  } else {
-    await refreshRom();
+  if (!canUseFolders) {
+    $("folder-card").hidden = true;
+    $("fallback-title").textContent = "GBA Player";
+    $("fallback-text").textContent = "This browser can't save next to the ROM (use Chrome or Edge for that). " +
+      "Here, saves stay in this browser only (player menu: Export / Import Save File).";
+    return;
   }
-  await loadVault();
-  if (!vault) {
-    show("cloud-setup", true);
-  } else if ((token = remembered())) {
-    openCloud();
+  const dir = await getStored("folder");
+  if (dir) {
+    const granted = (await dir.queryPermission({ mode: "readwrite" })) === "granted";
+    showFolder(dir, granted).catch(() => say("Choose your game folder."));
   } else {
-    show("cloud-locked", true);
+    say("No folder chosen yet.");
   }
-  updatePlayButtons();
 })();
 </script>
 </body>
