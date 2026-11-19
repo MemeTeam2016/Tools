@@ -12,6 +12,13 @@ The browser remembers the folder, so later visits are just **Play** (plus a
 one-click access prompt). Put the folder on a USB stick or in OneDrive / Google
 Drive to play the same save on any computer. The `.sav` also works in desktop mGBA.
 
+**Autosave backups (the pokefirered mod):** the mod's ROM saves in the background
+every 5 minutes, into the game's spare save slot, so the game itself still loads your
+last manual save. The page spots those writes and puts them in
+`backup_<rom name>.sav` instead, leaving `<rom name>.sav` as your manual save. To
+go back to an autosave, rename the backup to `<rom name>.sav`. In desktop mGBA
+there's no separate backup file: autosaves stay in the spare slot inside the `.sav`.
+
 ## Other browsers
 
 Firefox and Safari can't write to a folder: there you choose the ROM each time

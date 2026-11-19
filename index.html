@@ -188,6 +188,45 @@ function injectSave(bytes) {
   gm.loadSaveFiles();
 }
 
+// ---------- FireRed autosaves ----------
+// The flash holds two save slots of 14 sectors (4 KB each); the game loads the one
+// with the higher counter. A manual save writes a new, higher-counter slot. The mod's
+// background autosave rewrites only the older slot (with a lower counter, so the
+// game still loads the manual save); that's how it is told apart here.
+const SECTOR = 0x1000, SLOT_SECTORS = 14, SIGNATURE = 0x08012025;
+function slotCounter(bytes, slot) {
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let i = 0; i < SLOT_SECTORS; i++) {
+    const base = (slot * SLOT_SECTORS + i) * SECTOR;
+    if (v.getUint32(base + 0xFF8, true) === SIGNATURE) return v.getUint32(base + 0xFFC, true);
+  }
+  return null;
+}
+function newestSlot(bytes) {
+  const a = slotCounter(bytes, 0), b = slotCounter(bytes, 1);
+  if (a === null) return 1;
+  if (b === null) return 0;
+  if (a === 0xFFFFFFFF && b === 0) return 1;   // counter wrapped
+  if (b === 0xFFFFFFFF && a === 0) return 0;
+  return b > a ? 1 : 0;
+}
+const slotBytes = (bytes, slot) => bytes.subarray(slot * SLOT_SECTORS * SECTOR, (slot + 1) * SLOT_SECTORS * SECTOR);
+function isAutosave(before, now) {
+  if (before.length !== now.length || now.length < SAVE_SIZE) return false;
+  const newest = newestSlot(now), older = 1 - newest;
+  const rest = b => b.subarray(2 * SLOT_SECTORS * SECTOR, SAVE_SIZE);   // Hall of Fame etc.
+  return slotCounter(now, older) !== null
+    && sameBytes(slotBytes(now, newest), slotBytes(before, newest))
+    && sameBytes(rest(now), rest(before))
+    && !sameBytes(slotBytes(now, older), slotBytes(before, older));
+}
+// A .sav that loads the autosave: the autosave slot copied over the manual one too.
+function autosaveFile(now) {
+  const out = now.slice(0, SAVE_SIZE), older = 1 - newestSlot(now);
+  out.set(slotBytes(now, older), (1 - older) * SLOT_SECTORS * SECTOR);
+  return out;
+}
+
 async function writeFile(dir, name, bytes) {
   const fh = await dir.getFileHandle(name, { create: true });
   const w = await fh.createWritable();
@@ -208,7 +247,9 @@ async function playFromFolder(dir, romName) {
 
   // desktop mGBA appends a 16-byte footer; the game's save is the first 128 KB
   const core = start.length > SAVE_SIZE ? start.slice(0, SAVE_SIZE) : start;
-  let written = fresh ? null : core, lastSeen = core, busy = false, dirty = false, backedUp = false;
+  const backup = "backup_" + sav;
+  // handled: the last flash contents dealt with, by a write to the .sav or the backup
+  let written = fresh ? null : core, handled = written, lastSeen = core, busy = false, dirty = false, backedUp = false;
 
   async function tick() {
     if (busy) return;
@@ -218,18 +259,26 @@ async function playFromFolder(dir, romName) {
     now = new Uint8Array(now);
     const stable = sameBytes(now, lastSeen);   // unchanged since last check: the game finished saving
     lastSeen = now;
-    if (sameBytes(now, written)) { dirty = false; return; }
-    dirty = true;
-    if (!stable) { badge("busy", "Saving…"); return; }
+    if (sameBytes(now, handled)) { dirty = false; return; }
+    const auto = handled && isAutosave(handled, now);
+    dirty = !stable || !auto;   // until it settles it could still be a manual save
+    if (!stable) { if (!auto) badge("busy", "Saving…"); return; }
     busy = true;
     try {
-      // first write this session: keep the previous save as a backup
-      if (!backedUp && !fresh) { await writeFile(dir, sav + ".bak", start); backedUp = true; }
-      await writeFile(dir, sav, now);
-      written = now; dirty = false;
-      badge("ok", `Saved to ${sav} ${timeNow()}`);
+      if (auto) {
+        // the game's background autosave: copy it out, leave the manual save alone
+        await writeFile(dir, backup, autosaveFile(now));
+        handled = now; dirty = false;
+        badge("ok", `Autosaved to ${backup} ${timeNow()}`);
+      } else {
+        // first write this session: keep the previous save as a backup
+        if (!backedUp && !fresh) { await writeFile(dir, sav + ".bak", start); backedUp = true; }
+        await writeFile(dir, sav, now);
+        written = handled = now; dirty = false;
+        badge("ok", `Saved to ${sav} ${timeNow()}`);
+      }
     } catch (e) {
-      badge("bad", `Couldn't write ${sav} (${e.message}), retrying…`);
+      badge("bad", `Couldn't write ${auto ? backup : sav} (${e.message}), retrying…`);
     } finally {
       busy = false;
     }
